@@ -1,0 +1,13 @@
+[project]
+name = "ncc-ai-news"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "dotenv>=0.9.9",
+    "fastapi>=0.124.2",
+    "google-genai>=1.55.0",
+    "pip>=25.3",
+    "uvicorn>=0.38.0",
+]

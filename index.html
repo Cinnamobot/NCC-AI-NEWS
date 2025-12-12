@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News App</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>News App</h1>
+
+        <!-- カテゴリフィルター -->
+        <div class="category-filter">
+            <div class="filter-header">
+                <span class="filter-label">カテゴリで絞り込み</span>
+                <div class="filter-actions">
+                    <button id="apply-filter" class="apply-btn">絞り込み</button>
+                    <button id="clear-filter" class="clear-btn">クリア</button>
+                </div>
+            </div>
+            <div id="category-container" class="category-container"></div>
+        </div>
+
+        <!-- ニュース一覧 -->
+        <div id="news-container"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let allNewsData = [];
+        let selectedCategories = new Set();
+
+        // 初期読み込み
+        loadNews();
+
+        // ニュースを取得して表示
+        async function loadNews(filterTags = null) {
+            try {
+                let url = `${API_BASE}/api/news`;
+                if (filterTags && filterTags.size > 0) {
+                    url += `?tags=${Array.from(filterTags).join(',')}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                allNewsData = data.news;
+
+                // 新規ニュース数を表示
+                if (data.new_count > 0) {
+                    console.log(`新規ニュース ${data.new_count} 件を取得しました`);
+                }
+
+                // カテゴリを更新（フィルタ未選択時のみ）
+                if (!filterTags || filterTags.size === 0) {
+                    const allCategories = extractCategories(allNewsData);
+                    renderCategories(allCategories);
+                }
+
+                // ニュース表示
+                renderNews(allNewsData);
+            } catch (error) {
+                console.error('Error loading news:', error);
+                document.getElementById('news-container').innerHTML =
+                    '<p class="error">ニュースの読み込みに失敗しました。APIサーバーが起動しているか確認してください。</p>';
+            }
+        }
+
+        // カテゴリを抽出して出現回数でソート
+        function extractCategories(data) {
+            const categoryCount = {};
+            data.forEach(item => {
+                if (item.tags && item.tags.length > 0) {
+                    item.tags.forEach(tag => {
+                        categoryCount[tag] = (categoryCount[tag] || 0) + 1;
+                    });
+                }
+            });
+
+            // 出現回数順にソート
+            return Object.entries(categoryCount)
+                .sort((a, b) => b[1] - a[1])
+                .map(entry => entry[0]);
+        }
+
+        // カテゴリボタンを描画
+        function renderCategories(categories) {
+            const container = document.getElementById('category-container');
+            container.innerHTML = '';
+
+            categories.forEach(category => {
+                const button = document.createElement('button');
+                button.className = 'category-btn';
+                if (selectedCategories.has(category)) {
+                    button.classList.add('active');
+                }
+                button.textContent = category;
+                button.dataset.category = category;
+
+                button.addEventListener('click', () => {
+                    toggleCategory(category, button);
+                });
+
+                container.appendChild(button);
+            });
+        }
+
+        // カテゴリの選択/解除を切り替え（UIのみ更新、API呼び出しなし）
+        function toggleCategory(category, button) {
+            if (selectedCategories.has(category)) {
+                selectedCategories.delete(category);
+                button.classList.remove('active');
+            } else {
+                selectedCategories.add(category);
+                button.classList.add('active');
+            }
+            // 確定ボタンの状態更新
+            updateApplyButtonState();
+        }
+
+        // 確定ボタンの状態更新
+        function updateApplyButtonState() {
+            const applyBtn = document.getElementById('apply-filter');
+            if (selectedCategories.size > 0) {
+                applyBtn.classList.add('has-selection');
+                applyBtn.textContent = `絞り込み (${selectedCategories.size}件)`;
+            } else {
+                applyBtn.classList.remove('has-selection');
+                applyBtn.textContent = '絞り込み';
+            }
+        }
+
+        // ニュースをフィルタリング（API経由）
+        function filterNews() {
+            if (selectedCategories.size === 0) {
+                // カテゴリ未選択時は全件表示
+                loadNews();
+            } else {
+                // 選択されたカテゴリでフィルタ
+                loadNews(selectedCategories);
+            }
+        }
+
+        // 絞り込み確定ボタン
+        document.getElementById('apply-filter').addEventListener('click', () => {
+            filterNews();
+        });
+
+        // クリアボタン
+        document.getElementById('clear-filter').addEventListener('click', () => {
+            selectedCategories.clear();
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            updateApplyButtonState();
+            loadNews();
+        });
+
+        // ニュースカードを描画
+        function renderNews(data) {
+            const container = document.getElementById('news-container');
+            container.innerHTML = '';
+
+            if (data.length === 0) {
+                container.innerHTML = '<p class="no-results">該当するニュースがありません。</p>';
+                return;
+            }
+
+            data.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'news-card';
+
+                // タイトル（リンク付き）
+                const title = document.createElement('a');
+                title.href = item.link;
+                title.className = 'news-title';
+                title.textContent = item.title;
+                title.target = '_blank';
+                title.rel = 'noopener noreferrer';
+                card.appendChild(title);
+
+                // 説明文（存在する場合）
+                if (item.description && item.description.trim() !== '') {
+                    const description = document.createElement('p');
+                    description.className = 'news-description';
+                    description.textContent = item.description;
+                    card.appendChild(description);
+                }
+
+                // タグ
+                if (item.tags && item.tags.length > 0) {
+                    const tagsContainer = document.createElement('div');
+                    tagsContainer.className = 'tags-container';
+
+                    item.tags.forEach(tag => {
+                        const tagElement = document.createElement('span');
+                        tagElement.className = 'tag';
+                        // 選択中のカテゴリをハイライト
+                        if (selectedCategories.has(tag)) {
+                            tagElement.classList.add('highlighted');
+                        }
+                        tagElement.textContent = tag;
+                        tagsContainer.appendChild(tagElement);
+                    });
+
+                    card.appendChild(tagsContainer);
+                }
+
+                container.appendChild(card);
+            });
+        }
+    </script>
+</body>
+
+</html>
