@@ -10,6 +10,8 @@ from pathlib import Path
 import requests
 import xml.etree.ElementTree as ET
 from fastapi import FastAPI, Query
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types
@@ -27,6 +29,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 静的ファイル配信（スタイルシートなど）
+STATIC_DIR = Path(__file__).parent
+
+
+@app.get("/")
+async def serve_frontend():
+    """フロントエンドのHTMLを返す"""
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+# 静的ファイル配信（CSSなど）- ルートエンドポイントより後にマウント
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 DATA_FILE = Path(__file__).parent / "all_topics.json"
 
